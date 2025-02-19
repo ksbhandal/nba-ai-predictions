@@ -50,12 +50,12 @@ player_df = pd.json_normalize(player_data)
 
 # Ensure Data Exists Before Feature Engineering
 if not df.empty:
-    df["home_team"] = df["competitions[0].competitors[0].team.displayName"]
-    df["away_team"] = df["competitions[0].competitors[1].team.displayName"]
-    df["home_score"] = df["competitions[0].competitors[0].score"]
-    df["away_score"] = df["competitions[0].competitors[1].score"]
+    df["home_team"] = df.apply(lambda x: x["competitions"][0]["competitors"][0]["team"]["displayName"] if "competitions" in x and x["competitions"] else "N/A", axis=1)
+    df["away_team"] = df.apply(lambda x: x["competitions"][0]["competitors"][1]["team"]["displayName"] if "competitions" in x and x["competitions"] else "N/A", axis=1)
+    df["home_score"] = df.apply(lambda x: x["competitions"][0]["competitors"][0]["score"] if "competitions" in x and x["competitions"] else "0", axis=1)
+    df["away_score"] = df.apply(lambda x: x["competitions"][0]["competitors"][1]["score"] if "competitions" in x and x["competitions"] else "0", axis=1)
     df["point_diff"] = df["home_score"].astype(int) - df["away_score"].astype(int)
-    df["game_status"] = df["status.type.name"]
+    df["game_status"] = df.apply(lambda x: x["status"]["type"]["name"] if "status" in x and x["status"] else "Unknown", axis=1)
 
 # Streamlit Dashboard
 st.title("NBA AI Prediction Dashboard")

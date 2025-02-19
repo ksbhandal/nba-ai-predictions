@@ -18,10 +18,10 @@ from email.mime.multipart import MIMEMultipart
 # Ensure required packages are installed
 os.system("pip install requests pandas numpy streamlit plotly scikit-learn matplotlib")
 
-def fetch_api_data(url, headers=None):
+def fetch_api_data(url, params=None):
     """Fetch API data with error handling"""
     try:
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, params=params)
         response.raise_for_status()  # Raise an error for HTTP failures
         return response.json()  # Ensure response is JSON
     except requests.exceptions.RequestException as e:
@@ -31,31 +31,35 @@ def fetch_api_data(url, headers=None):
         st.error("Invalid JSON response from API")
         return {}
 
-# Step 1: Fetch NBA Data (Current Season) using ESPN API
-ESPN_API_URL = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
-data = fetch_api_data(ESPN_API_URL).get("events", [])
+# Step 1: Fetch NBA Data (Current Season)
+current_season = datetime.datetime.now().year
+if current_season > 2024:
+    current_season = 2024  # Use latest available season
+
+NBA_API_URL = "https://www.balldontlie.io/api/v1/games"
+params = {"seasons": [current_season], "per_page": 100}
+data = fetch_api_data(NBA_API_URL, params).get("data", [])
 
 # Convert to DataFrame
-df = pd.json_normalize(data)
+df = pd.DataFrame(data)
 
 # Fetch Real-Time NBA Data
-LIVE_NBA_API_URL = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
-live_data = fetch_api_data(LIVE_NBA_API_URL).get("events", [])
-live_df = pd.json_normalize(live_data)
+LIVE_NBA_API_URL = "https://www.balldontlie.io/api/v1/games/today"
+live_data = fetch_api_data(LIVE_NBA_API_URL).get("data", [])
+live_df = pd.DataFrame(live_data)
 
-# Fetch Player Stats (Using ESPN API for Box Score Data)
-PLAYER_STATS_API = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary"
-player_data = fetch_api_data(PLAYER_STATS_API).get("boxscore", {}).get("players", [])
-player_df = pd.json_normalize(player_data)
+# Fetch Player Stats
+PLAYER_STATS_API = "https://www.balldontlie.io/api/v1/stats"
+player_data = fetch_api_data(PLAYER_STATS_API, {"seasons": [current_season], "per_page": 100}).get("data", [])
+player_df = pd.DataFrame(player_data)
 
 # Ensure Data Exists Before Feature Engineering
 if not df.empty:
-    df["home_team"] = df.apply(lambda x: x["competitions"][0]["competitors"][0]["team"]["displayName"] if "competitions" in x and x["competitions"] else "N/A", axis=1)
-    df["away_team"] = df.apply(lambda x: x["competitions"][0]["competitors"][1]["team"]["displayName"] if "competitions" in x and x["competitions"] else "N/A", axis=1)
-    df["home_score"] = df.apply(lambda x: x["competitions"][0]["competitors"][0]["score"] if "competitions" in x and x["competitions"] else "0", axis=1)
-    df["away_score"] = df.apply(lambda x: x["competitions"][0]["competitors"][1]["score"] if "competitions" in x and x["competitions"] else "0", axis=1)
-    df["point_diff"] = df["home_score"].astype(int) - df["away_score"].astype(int)
-    df["game_status"] = df.apply(lambda x: x["status"]["type"]["name"] if "status" in x and x["status"] else "Unknown", axis=1)
+    df["home_win"] = df["home_team_score"] > df["visitor_team_score"]
+    df["point_diff"] = df["home_team_score"] - df["visitor_team_score"]
+    df["pace"] = (df["home_team_score"] + df["visitor_team_score"]) / 2
+    df["home_last_15_avg"] = df["home_team_score"].rolling(window=15).mean()
+    df["visitor_last_15_avg"] = df["visitor_team_score"].rolling(window=15).mean()
 
 # Streamlit Dashboard
 st.title("NBA AI Prediction Dashboard")
@@ -64,13 +68,13 @@ st.metric(label="Optimized Model Accuracy", value=f"N/A")
 # Display Real-Time Games Data
 st.subheader("Live NBA Games")
 if not live_df.empty:
-    st.dataframe(live_df[["home_team", "away_team", "home_score", "away_score", "game_status"]])
+    st.dataframe(live_df[["home_team.full_name", "visitor_team.full_name", "home_team_score", "visitor_team_score"]])
 else:
     st.write("No live games available.")
 
 # Display NBA Data Table
 st.subheader("NBA Game Data")
 if not df.empty:
-    st.dataframe(df[["home_team", "away_team", "home_score", "away_score", "point_diff", "game_status"]])
+    st.dataframe(df)
 else:
     st.write("No game data available.")

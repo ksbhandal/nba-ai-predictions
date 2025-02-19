@@ -16,34 +16,43 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+def fetch_api_data(url, params=None):
+    """Fetch API data with error handling"""
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()  # Raise an error for HTTP failures
+        return response.json()  # Ensure response is JSON
+    except requests.exceptions.RequestException as e:
+        st.error(f"API request failed: {e}")
+        return {}  # Return empty dictionary to prevent crashes
+    except ValueError:
+        st.error("Invalid JSON response from API")
+        return {}
+
 # Step 1: Fetch NBA Data (Current Season)
 current_season = datetime.datetime.now().year
 NBA_API_URL = "https://www.balldontlie.io/api/v1/games"
 params = {"seasons": [current_season], "per_page": 100}
-response = requests.get(NBA_API_URL, params=params)
-data = response.json().get("data", [])
+data = fetch_api_data(NBA_API_URL, params).get("data", [])
 
 # Convert to DataFrame
 df = pd.DataFrame(data)
 
 # Fetch Real-Time NBA Data
 LIVE_NBA_API_URL = "https://www.balldontlie.io/api/v1/games/today"
-live_response = requests.get(LIVE_NBA_API_URL)
-live_data = live_response.json().get("data", [])
+live_data = fetch_api_data(LIVE_NBA_API_URL).get("data", [])
 live_df = pd.DataFrame(live_data)
 
 # Fetch Player Stats
 PLAYER_STATS_API = "https://www.balldontlie.io/api/v1/stats"
-player_response = requests.get(PLAYER_STATS_API, params={"seasons": [current_season], "per_page": 100})
-player_data = player_response.json().get("data", [])
+player_data = fetch_api_data(PLAYER_STATS_API, {"seasons": [current_season], "per_page": 100}).get("data", [])
 player_df = pd.DataFrame(player_data)
 
 # Fetch Betting Odds
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/basketball_nba/odds"
 odds_params = {"regions": "us", "markets": "h2h,spreads,totals", "apiKey": "YOUR_API_KEY"}
-odds_response = requests.get(ODDS_API_URL, params=odds_params)
-odds_data = odds_response.json()
-odds_df = pd.DataFrame(odds_data)
+odds_data = fetch_api_data(ODDS_API_URL, odds_params)
+odds_df = pd.DataFrame(odds_data) if odds_data else pd.DataFrame()
 
 # Ensure Data Exists Before Feature Engineering
 if not df.empty:
@@ -72,34 +81,16 @@ else:
     odds_df["predicted_winner"] = "Model Not Available"
     odds_df["ai_confidence"] = 0
 
-# Function to Send Alerts for High-Value Bets
-def send_email_alert(subject, body, recipient_email):
-    sender_email = "your_email@example.com"
-    sender_password = "your_password"
-    msg = MIMEMultipart()
-    msg['From'] = sender_email
-    msg['To'] = recipient_email
-    msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'plain'))
-    with smtplib.SMTP('smtp.example.com', 587) as server:
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, recipient_email, msg.as_string())
-
-# Send Alert for High-Value Bets
-if "bet_value" in odds_df.columns and not odds_df.empty:
-    high_value_bets = odds_df[odds_df["bet_value"] > 0.1]
-    if not high_value_bets.empty:
-        alert_message = "High-Value Betting Opportunities:\n" + high_value_bets.to_string()
-        send_email_alert("High-Value Bet Alert", alert_message, "your_email@example.com")
-
 # Streamlit Dashboard
 st.title("NBA AI Prediction Dashboard")
 st.metric(label="Optimized Model Accuracy", value=f"N/A")
 
 # Display Betting Odds with AI Predictions
 st.subheader("Betting Odds vs AI Predictions")
-st.dataframe(odds_df[["bookmakers", "predicted_winner", "ai_confidence", "bet_value"]])
+if not odds_df.empty:
+    st.dataframe(odds_df[["bookmakers", "predicted_winner", "ai_confidence", "bet_value"]])
+else:
+    st.write("No betting odds available.")
 
 # Display Real-Time Games Data
 st.subheader("Live NBA Games")

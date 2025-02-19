@@ -1,3 +1,5 @@
+import os
+os.system("pip install plotly")
 import requests
 import pandas as pd
 import numpy as np

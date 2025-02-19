@@ -1,79 +1,94 @@
 import os
+import json
 import requests
 import pandas as pd
 import numpy as np
 import streamlit as st
 import plotly.express as px
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import GridSearchCV
-import datetime
-import matplotlib.pyplot as plt
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+from datetime import datetime, time
 
 # Ensure required packages are installed
-os.system("pip install requests pandas numpy streamlit plotly scikit-learn matplotlib")
+os.system("pip install requests pandas numpy streamlit plotly")
 
-def fetch_api_data(url, params=None):
-    """Fetch API data with error handling"""
+# API Configuration
+API_KEY = "625a97bbcdb946c45a09a2dbddbdf0ce"  # Replace with your API key
+BASE_URL = "https://api-basketball.p.rapidapi.com/"
+HEADERS = {
+    "x-rapidapi-host": "api-basketball.p.rapidapi.com",
+    "x-rapidapi-key": API_KEY
+}
+DATA_FILE = "nba_data.json"
+UPDATE_TIMES = ["07:00", "12:00", "15:00", "22:00"]
+
+# Function to fetch API data
+def fetch_api_data(endpoint, params=None):
+    url = f"{BASE_URL}{endpoint}"
     try:
-        response = requests.get(url, params=params)
-        response.raise_for_status()  # Raise an error for HTTP failures
+        response = requests.get(url, headers=HEADERS, params=params)
+        response.raise_for_status()
         data = response.json()
-        if "data" not in data:
-            st.error(f"Unexpected API response: {data}")
-            return []
-        return data["data"]
+        return data.get("response", [])
     except requests.exceptions.RequestException as e:
         st.error(f"API request failed: {e}")
         return []
 
-# Step 1: Fetch NBA Data (Current Season)
-current_season = datetime.datetime.now().year
-if current_season > 2024:
-    current_season = 2024  # Use latest available season
+# Function to load cached data
+def load_saved_data():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r") as f:
+            return json.load(f)
+    return {}
 
-NBA_API_URL = "https://api.balldontlie.io/v1/games"
-params = {"seasons[]": current_season, "per_page": 100}
-data = fetch_api_data(NBA_API_URL, params)
+# Function to save data
+def save_data(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f)
 
-# Convert to DataFrame
-df = pd.DataFrame(data)
+# Determine if an update is needed
+def is_update_time():
+    current_time = datetime.now().strftime("%H:%M")
+    return current_time in UPDATE_TIMES
 
-# Fetch Real-Time NBA Data
-LIVE_NBA_API_URL = "https://api.balldontlie.io/v1/games?dates[]=today"
-live_data = fetch_api_data(LIVE_NBA_API_URL)
-live_df = pd.DataFrame(live_data)
+# Load saved data
+saved_data = load_saved_data()
 
-# Fetch Player Stats
-PLAYER_STATS_API = "https://api.balldontlie.io/v1/stats"
-player_data = fetch_api_data(PLAYER_STATS_API, {"seasons[]": current_season, "per_page": 100})
-player_df = pd.DataFrame(player_data)
+if "last_update" not in saved_data or is_update_time():
+    st.write("Fetching new data...")
+    current_season = datetime.now().year if datetime.now().month > 6 else datetime.now().year - 1
+    
+    # Fetch data
+    games_data = fetch_api_data("games", {"league": "12", "season": current_season})  # NBA League ID = 12
+    live_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "live": "all"})
+    player_stats_data = fetch_api_data("players/statistics", {"league": "12", "season": current_season})
+    
+    # Save the data
+    saved_data = {
+        "last_update": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "games": games_data,
+        "live_games": live_games_data,
+        "player_stats": player_stats_data,
+    }
+    save_data(saved_data)
+else:
+    st.write("Using cached data...")
 
-# Ensure Data Exists Before Feature Engineering
-if not df.empty:
-    df["home_win"] = df["home_team_score"] > df["visitor_team_score"]
-    df["point_diff"] = df["home_team_score"] - df["visitor_team_score"]
-    df["pace"] = (df["home_team_score"] + df["visitor_team_score"]) / 2
-    df["home_last_15_avg"] = df["home_team_score"].rolling(window=15).mean()
-    df["visitor_last_15_avg"] = df["visitor_team_score"].rolling(window=15).mean()
+# Convert saved data to DataFrames
+df = pd.DataFrame(saved_data.get("games", []))
+live_df = pd.DataFrame(saved_data.get("live_games", []))
+player_df = pd.DataFrame(saved_data.get("player_stats", []))
 
 # Streamlit Dashboard
 st.title("NBA AI Prediction Dashboard")
-st.metric(label="Optimized Model Accuracy", value=f"N/A")
+st.metric(label="Last Updated", value=saved_data["last_update"])
 
-# Display Real-Time Games Data
+# Display Live NBA Games
 st.subheader("Live NBA Games")
 if not live_df.empty:
-    st.dataframe(live_df[["home_team.full_name", "visitor_team.full_name", "home_team_score", "visitor_team_score"]])
+    st.dataframe(live_df)
 else:
     st.write("No live games available.")
 
-# Display NBA Data Table
+# Display NBA Game Data
 st.subheader("NBA Game Data")
 if not df.empty:
     st.dataframe(df)

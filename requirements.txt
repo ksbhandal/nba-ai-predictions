@@ -1,4 +1,3 @@
-pip==25.0.1
 requests
 pandas
 numpy
@@ -7,4 +6,4 @@ plotly
 scikit-learn
 matplotlib
 smtplib
-the-odds-api
+email

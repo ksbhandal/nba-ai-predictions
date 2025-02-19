@@ -31,6 +31,9 @@ def fetch_api_data(url, params=None):
 
 # Step 1: Fetch NBA Data (Current Season)
 current_season = datetime.datetime.now().year
+if current_season > 2024:
+    current_season = 2024  # Use latest available season
+
 NBA_API_URL = "https://www.balldontlie.io/api/v1/games"
 params = {"seasons": [current_season], "per_page": 100}
 data = fetch_api_data(NBA_API_URL, params).get("data", [])
@@ -50,7 +53,7 @@ player_df = pd.DataFrame(player_data)
 
 # Fetch Betting Odds
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/basketball_nba/odds"
-odds_params = {"regions": "us", "markets": "h2h,spreads,totals", "apiKey": "YOUR_API_KEY"}
+odds_params = {"regions": "us", "markets": "h2h,spreads,totals", "apiKey": "YOUR_REAL_API_KEY"}  # Replace with a valid API key
 odds_data = fetch_api_data(ODDS_API_URL, odds_params)
 odds_df = pd.DataFrame(odds_data) if odds_data else pd.DataFrame()
 

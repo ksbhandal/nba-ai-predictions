@@ -11,11 +11,10 @@ from datetime import datetime, time
 os.system("pip install requests pandas numpy streamlit plotly")
 
 # API Configuration
-API_KEY = "625a97bbcdb946c45a09a2dbddbdf0ce"  # Replace with your API key
-BASE_URL = "https://api-basketball.p.rapidapi.com/"
+API_KEY = "625a97bbcdb946c45a09a2dbddbdf0ce"  # API-Sports API Key
+BASE_URL = "https://v1.basketball.api-sports.io/"
 HEADERS = {
-    "x-rapidapi-host": "api-basketball.p.rapidapi.com",
-    "x-rapidapi-key": API_KEY
+    "x-apisports-key": API_KEY
 }
 DATA_FILE = "nba_data.json"
 UPDATE_TIMES = ["07:00", "12:00", "15:00", "22:00"]

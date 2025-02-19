@@ -58,6 +58,7 @@ if "last_update" not in saved_data or is_update_time():
     # Fetch data
     games_data = fetch_api_data("games", {"league": "12", "season": current_season})  # NBA League ID = 12
     live_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "live": "all"})
+    upcoming_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "date": (datetime.now().date()).isoformat()})
     player_stats_data = fetch_api_data("players/statistics", {"league": "12", "season": current_season})
     
     # Save the data
@@ -65,6 +66,7 @@ if "last_update" not in saved_data or is_update_time():
         "last_update": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "games": games_data,
         "live_games": live_games_data,
+        "upcoming_games": upcoming_games_data,
         "player_stats": player_stats_data,
     }
     save_data(saved_data)
@@ -74,6 +76,7 @@ else:
 # Convert saved data to DataFrames
 df = pd.DataFrame(saved_data.get("games", []))
 live_df = pd.DataFrame(saved_data.get("live_games", []))
+upcoming_df = pd.DataFrame(saved_data.get("upcoming_games", []))
 player_df = pd.DataFrame(saved_data.get("player_stats", []))
 
 # Streamlit Dashboard
@@ -86,6 +89,13 @@ if not live_df.empty:
     st.dataframe(live_df)
 else:
     st.write("No live games available.")
+
+# Display Upcoming NBA Games
+st.subheader("Upcoming NBA Games")
+if not upcoming_df.empty:
+    st.dataframe(upcoming_df)
+else:
+    st.write("No upcoming games available.")
 
 # Display NBA Game Data
 st.subheader("NBA Game Data")

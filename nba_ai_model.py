@@ -18,10 +18,10 @@ from email.mime.multipart import MIMEMultipart
 # Ensure required packages are installed
 os.system("pip install requests pandas numpy streamlit plotly scikit-learn matplotlib")
 
-def fetch_api_data(url, params=None):
+def fetch_api_data(url, headers=None):
     """Fetch API data with error handling"""
     try:
-        response = requests.get(url, params=params)
+        response = requests.get(url, headers=headers)
         response.raise_for_status()  # Raise an error for HTTP failures
         return response.json()  # Ensure response is JSON
     except requests.exceptions.RequestException as e:
@@ -31,35 +31,31 @@ def fetch_api_data(url, params=None):
         st.error("Invalid JSON response from API")
         return {}
 
-# Step 1: Fetch NBA Data (Current Season)
-current_season = datetime.datetime.now().year
-if current_season > 2024:
-    current_season = 2024  # Use latest available season
-
-NBA_API_URL = "https://api.sportsdata.io/v3/nba/scores/json/GamesByDate/{current_season}-01-01"
-params = {"key": "YOUR_NEW_API_KEY"}  # Replace with a valid API key
-data = fetch_api_data(NBA_API_URL, params).get("data", [])
+# Step 1: Fetch NBA Data (Current Season) using ESPN API
+ESPN_API_URL = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
+data = fetch_api_data(ESPN_API_URL).get("events", [])
 
 # Convert to DataFrame
-df = pd.DataFrame(data)
+df = pd.json_normalize(data)
 
 # Fetch Real-Time NBA Data
-LIVE_NBA_API_URL = "https://api.sportsdata.io/v3/nba/scores/json/AreAnyGamesInProgress"
-live_data = fetch_api_data(LIVE_NBA_API_URL, params)
-live_df = pd.DataFrame(live_data)
+LIVE_NBA_API_URL = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
+live_data = fetch_api_data(LIVE_NBA_API_URL).get("events", [])
+live_df = pd.json_normalize(live_data)
 
-# Fetch Player Stats
-PLAYER_STATS_API = "https://api.sportsdata.io/v3/nba/stats/json/PlayerSeasonStats/{current_season}"
-player_data = fetch_api_data(PLAYER_STATS_API, params).get("data", [])
-player_df = pd.DataFrame(player_data)
+# Fetch Player Stats (Using ESPN API for Box Score Data)
+PLAYER_STATS_API = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary"
+player_data = fetch_api_data(PLAYER_STATS_API).get("boxscore", {}).get("players", [])
+player_df = pd.json_normalize(player_data)
 
 # Ensure Data Exists Before Feature Engineering
 if not df.empty:
-    df["home_win"] = df["HomeTeamScore"] > df["AwayTeamScore"]
-    df["point_diff"] = df["HomeTeamScore"] - df["AwayTeamScore"]
-    df["pace"] = (df["HomeTeamScore"] + df["AwayTeamScore"]) / 2
-    df["home_last_15_avg"] = df["HomeTeamScore"].rolling(window=15).mean()
-    df["away_last_15_avg"] = df["AwayTeamScore"].rolling(window=15).mean()
+    df["home_team"] = df["competitions[0].competitors[0].team.displayName"]
+    df["away_team"] = df["competitions[0].competitors[1].team.displayName"]
+    df["home_score"] = df["competitions[0].competitors[0].score"]
+    df["away_score"] = df["competitions[0].competitors[1].score"]
+    df["point_diff"] = df["home_score"].astype(int) - df["away_score"].astype(int)
+    df["game_status"] = df["status.type.name"]
 
 # Streamlit Dashboard
 st.title("NBA AI Prediction Dashboard")
@@ -68,13 +64,13 @@ st.metric(label="Optimized Model Accuracy", value=f"N/A")
 # Display Real-Time Games Data
 st.subheader("Live NBA Games")
 if not live_df.empty:
-    st.write("Games are currently in progress!")
+    st.dataframe(live_df[["home_team", "away_team", "home_score", "away_score", "game_status"]])
 else:
     st.write("No live games available.")
 
 # Display NBA Data Table
 st.subheader("NBA Game Data")
 if not df.empty:
-    st.dataframe(df)
+    st.dataframe(df[["home_team", "away_team", "home_score", "away_score", "point_diff", "game_status"]])
 else:
     st.write("No game data available.")

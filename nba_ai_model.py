@@ -23,34 +23,35 @@ def fetch_api_data(url, params=None):
     try:
         response = requests.get(url, params=params)
         response.raise_for_status()  # Raise an error for HTTP failures
-        return response.json()  # Ensure response is JSON
+        data = response.json()
+        if "data" not in data:
+            st.error(f"Unexpected API response: {data}")
+            return []
+        return data["data"]
     except requests.exceptions.RequestException as e:
         st.error(f"API request failed: {e}")
-        return {}  # Return empty dictionary to prevent crashes
-    except ValueError:
-        st.error("Invalid JSON response from API")
-        return {}
+        return []
 
 # Step 1: Fetch NBA Data (Current Season)
 current_season = datetime.datetime.now().year
 if current_season > 2024:
     current_season = 2024  # Use latest available season
 
-NBA_API_URL = "https://www.balldontlie.io/api/v1/games"
-params = {"seasons": [current_season], "per_page": 100}
-data = fetch_api_data(NBA_API_URL, params).get("data", [])
+NBA_API_URL = "https://api.balldontlie.io/v1/games"
+params = {"seasons[]": current_season, "per_page": 100}
+data = fetch_api_data(NBA_API_URL, params)
 
 # Convert to DataFrame
 df = pd.DataFrame(data)
 
 # Fetch Real-Time NBA Data
-LIVE_NBA_API_URL = "https://www.balldontlie.io/api/v1/games/today"
-live_data = fetch_api_data(LIVE_NBA_API_URL).get("data", [])
+LIVE_NBA_API_URL = "https://api.balldontlie.io/v1/games?dates[]=today"
+live_data = fetch_api_data(LIVE_NBA_API_URL)
 live_df = pd.DataFrame(live_data)
 
 # Fetch Player Stats
-PLAYER_STATS_API = "https://www.balldontlie.io/api/v1/stats"
-player_data = fetch_api_data(PLAYER_STATS_API, {"seasons": [current_season], "per_page": 100}).get("data", [])
+PLAYER_STATS_API = "https://api.balldontlie.io/v1/stats"
+player_data = fetch_api_data(PLAYER_STATS_API, {"seasons[]": current_season, "per_page": 100})
 player_df = pd.DataFrame(player_data)
 
 # Ensure Data Exists Before Feature Engineering

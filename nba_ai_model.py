@@ -19,7 +19,7 @@ current_season = datetime.datetime.now().year
 NBA_API_URL = "https://www.balldontlie.io/api/v1/games"
 params = {"seasons": [current_season], "per_page": 100}
 response = requests.get(NBA_API_URL, params=params)
-data = response.json()["data"]
+data = response.json().get("data", [])
 
 # Convert to DataFrame
 df = pd.DataFrame(data)
@@ -27,13 +27,13 @@ df = pd.DataFrame(data)
 # Fetch Real-Time NBA Data
 LIVE_NBA_API_URL = "https://www.balldontlie.io/api/v1/games/today"
 live_response = requests.get(LIVE_NBA_API_URL)
-live_data = live_response.json()["data"]
+live_data = live_response.json().get("data", [])
 live_df = pd.DataFrame(live_data)
 
 # Fetch Player Stats
 PLAYER_STATS_API = "https://www.balldontlie.io/api/v1/stats"
 player_response = requests.get(PLAYER_STATS_API, params={"seasons": [current_season], "per_page": 100})
-player_data = player_response.json()["data"]
+player_data = player_response.json().get("data", [])
 player_df = pd.DataFrame(player_data)
 
 # Fetch Betting Odds
@@ -43,50 +43,61 @@ odds_response = requests.get(ODDS_API_URL, params=odds_params)
 odds_data = odds_response.json()
 odds_df = pd.DataFrame(odds_data)
 
-# Step 2: Feature Engineering (Extract relevant stats)
-df["home_win"] = df["home_team_score"] > df["visitor_team_score"]
-df["point_diff"] = df["home_team_score"] - df["visitor_team_score"]
-df["home_offensive_rating"] = df["home_team_score"] / (df["home_team_score"] + df["visitor_team_score"])
-df["visitor_offensive_rating"] = df["visitor_team_score"] / (df["home_team_score"] + df["visitor_team_score"])
-df["pace"] = (df["home_team_score"] + df["visitor_team_score"]) / 2
+# Ensure Data Exists Before Feature Engineering
+if not df.empty:
+    df["home_win"] = df["home_team_score"] > df["visitor_team_score"]
+    df["point_diff"] = df["home_team_score"] - df["visitor_team_score"]
+    df["home_offensive_rating"] = df["home_team_score"] / (df["home_team_score"] + df["visitor_team_score"])
+    df["visitor_offensive_rating"] = df["visitor_team_score"] / (df["home_team_score"] + df["visitor_team_score"])
+    df["pace"] = (df["home_team_score"] + df["visitor_team_score"]) / 2
+    df["home_rebound_rate"] = df["home_team_score"] / df["point_diff"].abs()
+    df["visitor_rebound_rate"] = df["visitor_team_score"] / df["point_diff"].abs()
+    df["home_defensive_rating"] = 1 - df["visitor_offensive_rating"]
+    df["visitor_defensive_rating"] = 1 - df["home_offensive_rating"]
+    df["home_opponent_fg%"] = df["visitor_team_score"] / (df["home_team_score"] + df["visitor_team_score"])
+    df["visitor_opponent_fg%"] = df["home_team_score"] / (df["home_team_score"] + df["visitor_team_score"])
+    df["home_last_15_avg"] = df["home_team_score"].rolling(window=15).mean()
+    df["visitor_last_15_avg"] = df["visitor_team_score"].rolling(window=15).mean()
+    df["clutch_performance"] = (df["home_team_score"] - df["visitor_team_score"]).abs() / df["point_diff"]
 
-df["home_rebound_rate"] = df["home_team_score"] / df["point_diff"].abs()
-df["visitor_rebound_rate"] = df["visitor_team_score"] / df["point_diff"].abs()
-
-df["home_defensive_rating"] = 1 - df["visitor_offensive_rating"]
-df["visitor_defensive_rating"] = 1 - df["home_offensive_rating"]
-
-df["home_opponent_fg%"] = df["visitor_team_score"] / (df["home_team_score"] + df["visitor_team_score"])
-df["visitor_opponent_fg%"] = df["home_team_score"] / (df["home_team_score"] + df["visitor_team_score"])
-
-# Update Momentum and Clutch Performance Metrics to Last 15 Games
-df["home_last_15_avg"] = df["home_team_score"].rolling(window=15).mean()
-df["visitor_last_15_avg"] = df["visitor_team_score"].rolling(window=15).mean()
-df["clutch_performance"] = (df["home_team_score"] - df["visitor_team_score"]).abs() / df["point_diff"]
-
-# Compare AI Predictions with Betting Odds
-odds_df = odds_df.explode("bookmakers")
-odds_df = odds_df.reset_index()
+# Compare AI Predictions with Betting Odds Safely
+if 'best_model' in locals() and 'X' in locals():
+    odds_df = odds_df.explode("bookmakers").reset_index()
+    odds_df["predicted_winner"] = best_model.predict(X)
+    odds_df["ai_confidence"] = best_model.predict_proba(X).max(axis=1)
+    odds_df["bet_value"] = odds_df["ai_confidence"] - 0.5  # Identifying value bets
+else:
+    odds_df["predicted_winner"] = "Model Not Available"
+    odds_df["ai_confidence"] = 0
 
 # Function to Send Alerts for High-Value Bets
 def send_email_alert(subject, body, recipient_email):
     sender_email = "your_email@example.com"
     sender_password = "your_password"
-    
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = recipient_email
     msg['Subject'] = subject
     msg.attach(MIMEText(body, 'plain'))
-    
     with smtplib.SMTP('smtp.example.com', 587) as server:
         server.starttls()
         server.login(sender_email, sender_password)
         server.sendmail(sender_email, recipient_email, msg.as_string())
 
+# Send Alert for High-Value Bets
+if "bet_value" in odds_df.columns and not odds_df.empty:
+    high_value_bets = odds_df[odds_df["bet_value"] > 0.1]
+    if not high_value_bets.empty:
+        alert_message = "High-Value Betting Opportunities:\n" + high_value_bets.to_string()
+        send_email_alert("High-Value Bet Alert", alert_message, "your_email@example.com")
+
 # Streamlit Dashboard
 st.title("NBA AI Prediction Dashboard")
-st.metric(label="Optimized Model Accuracy", value="N/A")
+st.metric(label="Optimized Model Accuracy", value=f"N/A")
+
+# Display Betting Odds with AI Predictions
+st.subheader("Betting Odds vs AI Predictions")
+st.dataframe(odds_df[["bookmakers", "predicted_winner", "ai_confidence", "bet_value"]])
 
 # Display Real-Time Games Data
 st.subheader("Live NBA Games")

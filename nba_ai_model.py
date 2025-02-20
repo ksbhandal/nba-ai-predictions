@@ -6,9 +6,10 @@ import numpy as np
 import streamlit as st
 import plotly.express as px
 from datetime import datetime, time
+import pytz
 
 # Ensure required packages are installed
-os.system("pip install requests pandas numpy streamlit plotly")
+os.system("pip install requests pandas numpy streamlit plotly pytz")
 
 # API Configuration
 API_KEY = "625a97bbcdb946c45a09a2dbddbdf0ce"  # API-Sports API Key
@@ -79,9 +80,14 @@ live_df = pd.DataFrame(saved_data.get("live_games", []))
 upcoming_df = pd.DataFrame(saved_data.get("upcoming_games", []))
 player_df = pd.DataFrame(saved_data.get("player_stats", []))
 
+# Convert UTC to PST
+utc_time = datetime.strptime(saved_data["last_update"], "%Y-%m-%d %H:%M")
+pst_timezone = pytz.timezone("America/Los_Angeles")  # PST Timezone
+pst_time = utc_time.astimezone(pst_timezone)
+
 # Streamlit Dashboard
 st.title("NBA AI Prediction Dashboard")
-st.metric(label="Last Updated", value=saved_data["last_update"])
+st.metric(label="Last Updated (PST)", value=pst_time.strftime("%Y-%m-%d %H:%M"))
 
 # Display Live NBA Games
 st.subheader("Live NBA Games")

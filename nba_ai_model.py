@@ -27,7 +27,11 @@ def fetch_api_data(endpoint, params=None):
         response = requests.get(url, headers=HEADERS, params=params)
         response.raise_for_status()
         data = response.json()
-        return data.get("response", [])
+        if "response" in data:
+            return data["response"]
+        else:
+            st.error(f"Unexpected API response: {data}")
+            return []
     except requests.exceptions.RequestException as e:
         st.error(f"API request failed: {e}")
         return []
@@ -56,11 +60,15 @@ if "last_update" not in saved_data or is_update_time():
     st.write("Fetching new data...")
     current_season = datetime.now().year if datetime.now().month > 6 else datetime.now().year - 1
     
-    # Fetch data
-    games_data = fetch_api_data("games", {"league": "12", "season": current_season})  # NBA League ID = 12
+    # Fetch data with API validation
+    games_data = fetch_api_data("games", {"league": "12", "season": current_season})
     live_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "live": "all"})
     upcoming_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "date": (datetime.now().date()).isoformat()})
     player_stats_data = fetch_api_data("players/statistics", {"league": "12", "season": current_season})
+    
+    # Validate API response
+    if not games_data and not live_games_data and not upcoming_games_data:
+        st.error("No data received from API. Please check your API key or request limits.")
     
     # Save the data
     saved_data = {

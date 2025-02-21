@@ -20,6 +20,10 @@ HEADERS = {
 DATA_FILE = "nba_data.json"
 MAX_REQUESTS_PER_DAY = 90  # Keeping a buffer from the 100 limit
 
+# Use only available free seasons (2021-2023)
+AVAILABLE_SEASONS = ["2023", "2022", "2021"]  # API free access seasons
+current_season = AVAILABLE_SEASONS[0]  # Use the most recent free season
+
 # Function to fetch API data
 def fetch_api_data(endpoint, params=None):
     url = f"{BASE_URL}{endpoint}"
@@ -64,9 +68,8 @@ saved_data = load_saved_data()
 # Refresh Button
 if st.button("Refresh Data") or needs_update():
     st.write("Fetching new data...")
-    current_season = datetime.now().year if datetime.now().month > 6 else datetime.now().year - 1
     
-    # Fetch data with API validation
+    # Fetch data using the most recent free season
     games_data = fetch_api_data("games", {"league": "12", "season": current_season})
     live_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "live": "all"})
     upcoming_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "date": (datetime.now().date()).isoformat()})

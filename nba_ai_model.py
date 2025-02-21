@@ -32,6 +32,8 @@ def fetch_api_data(endpoint, params=None):
         response.raise_for_status()
         data = response.json()
         if "response" in data:
+            if not data["response"]:
+                st.warning(f"No data returned for {endpoint}. Params: {params}")
             return data["response"]
         else:
             st.error(f"Unexpected API response: {data}")
@@ -58,7 +60,7 @@ def needs_update():
     last_update = saved_data.get("last_update")
     if last_update:
         last_update_time = datetime.strptime(last_update, "%Y-%m-%d %H:%M")
-        if datetime.now() - last_update_time < timedelta(minutes=60):  # Update every hour
+        if datetime.now() - last_update_time < timedelta(minutes=30):  # Update every 30 minutes
             return False
     return True
 
@@ -77,7 +79,9 @@ if st.button("Refresh Data") or needs_update():
     
     # Validate API response
     if not games_data and not live_games_data and not upcoming_games_data:
-        st.error("No data received from API. Please check your API key or request limits.")
+        st.error("No data received from API. Please check your API key, season restrictions, or request limits.")
+    else:
+        st.success("Data successfully fetched!")
     
     # Save the data
     saved_data = {
@@ -98,7 +102,7 @@ upcoming_df = pd.DataFrame(saved_data.get("upcoming_games", []))
 player_df = pd.DataFrame(saved_data.get("player_stats", []))
 
 # Convert UTC to PST
-utc_time = datetime.strptime(saved_data["last_update"], "%Y-%m-%d %H:%M")
+utc_time = datetime.strptime(saved_data.get("last_update", "2025-01-01 00:00"), "%Y-%m-%d %H:%M")
 pst_timezone = pytz.timezone("America/Los_Angeles")  # PST Timezone
 pst_time = utc_time.astimezone(pst_timezone)
 

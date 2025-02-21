@@ -7,7 +7,7 @@ import plotly.express as px
 from datetime import datetime, timedelta
 import pytz
 
-# Ensure required packages are installed (ideally, install these beforehand)
+# Ensure required packages are installed (ideally install these beforehand)
 os.system("pip install requests pandas streamlit plotly pytz")
 
 # API Configuration
@@ -106,7 +106,7 @@ live_df = pd.DataFrame(saved_data.get("live_games", []))
 upcoming_df = pd.DataFrame(saved_data.get("upcoming_games", []))
 player_df = pd.DataFrame(saved_data.get("player_stats", []))
 
-# Note: The last_update timestamp is saved in local time, so PST conversion may be off.
+# Convert last update time to PST
 try:
     utc_time = datetime.strptime(saved_data.get("last_update", "2025-01-01 00:00"), "%Y-%m-%d %H:%M")
     pst_timezone = pytz.timezone("America/Los_Angeles")
@@ -118,4 +118,20 @@ except Exception:
 st.title("NBA AI Prediction Dashboard")
 st.metric(label="Last Updated (PST)", value=pst_time.strftime("%Y-%m-%d %H:%M"))
 
-st.subheader("Live NBA
+st.subheader("Live NBA Games")
+if not live_df.empty:
+    st.dataframe(live_df)
+else:
+    st.write("No live games available.")
+
+st.subheader("Upcoming NBA Games")
+if not upcoming_df.empty:
+    st.dataframe(upcoming_df)
+else:
+    st.write("No upcoming games available.")
+
+st.subheader("NBA Game Data")
+if not df.empty:
+    st.dataframe(df)
+else:
+    st.write("No game data available.")

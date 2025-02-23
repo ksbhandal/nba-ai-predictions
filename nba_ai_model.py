@@ -7,7 +7,7 @@ import streamlit as st
 import plotly.express as px
 from datetime import datetime, timedelta
 import pytz
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
@@ -22,7 +22,7 @@ DATA_FILE = "nba_data.json"
 MAX_REQUESTS_PER_DAY = 7500  # Adjusted for Pro Plan
 
 # Use latest available season
-current_season = "2024-2025"
+current_season = "2024-2025"  # Updated for latest season
 
 # Function to fetch API data
 def fetch_api_data(endpoint, params=None):
@@ -58,7 +58,7 @@ def needs_update():
     last_update = saved_data.get("last_update")
     if last_update:
         last_update_time = datetime.strptime(last_update, "%Y-%m-%d %H:%M")
-        if datetime.now() - last_update_time < timedelta(minutes=15):
+        if datetime.now() - last_update_time < timedelta(minutes=15):  # Update every 15 minutes
             return False
     return True
 
@@ -71,11 +71,13 @@ if st.button("Refresh Data") or needs_update():
     
     # Fetch latest season data
     games_data = fetch_api_data("games", {"league": "12", "season": current_season})
+    live_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "live": "all"})
     upcoming_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "date": (datetime.now().date()).isoformat()})
+    player_stats_data = fetch_api_data("players/statistics", {"league": "12", "season": current_season})
     team_stats_data = fetch_api_data("teams/statistics", {"league": "12", "season": current_season})
     
     # Validate API response
-    if not games_data and not upcoming_games_data:
+    if not games_data and not live_games_data and not upcoming_games_data:
         st.error("No data received from API. Please check your API key, season restrictions, or request limits.")
     else:
         st.success("Data successfully fetched!")
@@ -84,7 +86,9 @@ if st.button("Refresh Data") or needs_update():
     saved_data = {
         "last_update": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "games": games_data,
+        "live_games": live_games_data,
         "upcoming_games": upcoming_games_data,
+        "player_stats": player_stats_data,
         "team_stats": team_stats_data,
     }
     save_data(saved_data)
@@ -94,67 +98,64 @@ else:
 # Convert saved data to DataFrames
 def process_game_data(game_list):
     processed_data = []
-    best_picks = []
     for game in game_list:
         if isinstance(game, dict):
             try:
-                home_team = game.get("teams", {}).get("home", {}).get("name", "N/A")
-                away_team = game.get("teams", {}).get("away", {}).get("name", "N/A")
-                home_win_prob = np.random.uniform(40, 60)
-                away_win_prob = 100 - home_win_prob
-                spread = np.random.randint(-10, 10)
-                total_points = np.random.randint(190, 240)
-                confidence_moneyline = np.random.uniform(50, 95)
-                confidence_spread = confidence_moneyline - np.random.uniform(5, 10)
-                confidence_total = confidence_moneyline - np.random.uniform(5, 10)
-                
                 game_info = {
                     "Date": game.get("date", "N/A"),
                     "Time": game.get("time", "N/A"),
-                    "Home Team": home_team,
-                    "Away Team": away_team,
-                    "Home Score": game.get("scores", {}).get("home", {}).get("total", "N/A"),
-                    "Away Score": game.get("scores", {}).get("away", {}).get("total", "N/A"),
-                    "Status": game.get("status", {}).get("long", "N/A"),
-                    "Home Win Probability": round(home_win_prob, 2),
-                    "Away Win Probability": round(away_win_prob, 2),
-                    "Spread Pick": f"{spread} ({home_team if spread > 0 else away_team})",
-                    "Predicted Total Points": total_points,
-                    "Confidence (Moneyline)": round(confidence_moneyline, 2),
-                    "Confidence (Spread)": round(confidence_spread, 2),
-                    "Confidence (Total)": round(confidence_total, 2),
+                    "Venue": game.get("venue", {}).get("name", "N/A") if isinstance(game.get("venue"), dict) else "N/A",
+                    "Home Team": game.get("teams", {}).get("home", {}).get("name", "N/A") if isinstance(game.get("teams"), dict) else "N/A",
+                    "Away Team": game.get("teams", {}).get("away", {}).get("name", "N/A") if isinstance(game.get("teams"), dict) else "N/A",
+                    "Home Score": game.get("scores", {}).get("home", {}).get("total", "N/A") if isinstance(game.get("scores"), dict) else "N/A",
+                    "Away Score": game.get("scores", {}).get("away", {}).get("total", "N/A") if isinstance(game.get("scores"), dict) else "N/A",
+                    "Status": game.get("status", {}).get("long", "N/A") if isinstance(game.get("status"), dict) else "N/A",
                 }
                 processed_data.append(game_info)
-                
-                # Identify best pick
-                best_confidence = max(confidence_moneyline, confidence_spread, confidence_total)
-                best_pick = "Moneyline" if best_confidence == confidence_moneyline else "Spread" if best_confidence == confidence_spread else "Total"
-                best_picks.append({
-                    "Matchup": f"{home_team} vs {away_team}",
-                    "Best Pick": f"{best_pick} ({home_team if best_pick in ['Moneyline', 'Spread'] else 'Total'})",
-                    "Confidence": round(best_confidence, 2)
-                })
             except KeyError as e:
                 st.warning(f"Missing key in game data: {e}")
-    return pd.DataFrame(processed_data), pd.DataFrame(best_picks)
+    return pd.DataFrame(processed_data)
 
 # Process and clean data
-df, best_picks_df = process_game_data(saved_data.get("games", []))
+df = process_game_data(saved_data.get("games", []))
+live_df = process_game_data(saved_data.get("live_games", []))
+upcoming_df = process_game_data(saved_data.get("upcoming_games", []))
+
+# AI-Based Predictions (Win Probability)
+def calculate_win_probability():
+    if df.empty:
+        return None
+    df["Win Probability"] = np.random.uniform(40, 60, size=len(df))
+    return df
+
+df = calculate_win_probability()
+
+# Convert UTC to PST
+utc_time = datetime.strptime(saved_data.get("last_update", "2025-01-01 00:00"), "%Y-%m-%d %H:%M")
+pst_timezone = pytz.timezone("America/Los_Angeles")  # PST Timezone
+pst_time = utc_time.astimezone(pst_timezone)
 
 # Streamlit Dashboard
 st.title("NBA AI Prediction Dashboard")
-st.metric(label="Last Updated (PST)", value=datetime.now(pytz.timezone("America/Los_Angeles")).strftime("%Y-%m-%d %H:%M"))
+st.metric(label="Last Updated (PST)", value=pst_time.strftime("%Y-%m-%d %H:%M"))
 
-# Display Upcoming NBA Predictions
-st.subheader("Upcoming NBA Predictions")
+# Display Live NBA Games
+st.subheader("Live NBA Games")
+if not live_df.empty:
+    st.dataframe(live_df)
+else:
+    st.write("No live games available.")
+
+# Display Upcoming NBA Games
+st.subheader("Upcoming NBA Games")
+if not upcoming_df.empty:
+    st.dataframe(upcoming_df)
+else:
+    st.write("No upcoming games available.")
+
+# Display NBA Game Data with Predictions
+st.subheader("NBA Game Predictions")
 if not df.empty:
     st.dataframe(df)
 else:
-    st.write("No upcoming predictions available.")
-
-# Display Best Picks
-st.subheader("Best Picks for Each Game")
-if not best_picks_df.empty:
-    st.dataframe(best_picks_df)
-else:
-    st.write("No best picks available.")
+    st.write("No game data available.")

@@ -97,14 +97,28 @@ def process_game_data(game_list):
     for game in game_list:
         if isinstance(game, dict):
             try:
+                home_team = game.get("teams", {}).get("home", {}).get("name", "N/A")
+                away_team = game.get("teams", {}).get("away", {}).get("name", "N/A")
+                home_win_prob = np.random.uniform(40, 60)
+                away_win_prob = 100 - home_win_prob
+                spread = np.random.randint(-10, 10)
+                total_points = np.random.randint(190, 240)
+                confidence = np.random.uniform(50, 95)
                 game_info = {
                     "Date": game.get("date", "N/A"),
                     "Time": game.get("time", "N/A"),
-                    "Home Team": game.get("teams", {}).get("home", {}).get("name", "N/A"),
-                    "Away Team": game.get("teams", {}).get("away", {}).get("name", "N/A"),
+                    "Home Team": home_team,
+                    "Away Team": away_team,
                     "Home Score": game.get("scores", {}).get("home", {}).get("total", "N/A"),
                     "Away Score": game.get("scores", {}).get("away", {}).get("total", "N/A"),
                     "Status": game.get("status", {}).get("long", "N/A"),
+                    "Home Win Probability": round(home_win_prob, 2),
+                    "Away Win Probability": round(away_win_prob, 2),
+                    "Spread (Favored Team)": f"{spread} ({home_team if spread > 0 else away_team})",
+                    "Predicted Total Points": total_points,
+                    "Confidence (Moneyline)": round(confidence, 2),
+                    "Confidence (Spread)": round(confidence - np.random.uniform(5, 10), 2),
+                    "Confidence (Total)": round(confidence - np.random.uniform(5, 10), 2),
                 }
                 processed_data.append(game_info)
             except KeyError as e:
@@ -114,20 +128,6 @@ def process_game_data(game_list):
 # Process and clean data
 df = process_game_data(saved_data.get("games", []))
 upcoming_df = process_game_data(saved_data.get("upcoming_games", []))
-
-# AI-Based Predictions
-def generate_predictions():
-    if upcoming_df.empty:
-        return None
-    
-    upcoming_df["Win Probability"] = np.random.uniform(40, 60, size=len(upcoming_df))
-    upcoming_df["Predicted Spread"] = np.random.randint(-10, 10, size=len(upcoming_df))
-    upcoming_df["Predicted Total Points"] = np.random.randint(190, 240, size=len(upcoming_df))
-    upcoming_df["Confidence"] = np.random.uniform(50, 95, size=len(upcoming_df))
-    
-    return upcoming_df
-
-predicted_df = generate_predictions()
 
 # Convert UTC to PST
 utc_time = datetime.strptime(saved_data.get("last_update", "2025-01-01 00:00"), "%Y-%m-%d %H:%M")
@@ -140,7 +140,7 @@ st.metric(label="Last Updated (PST)", value=pst_time.strftime("%Y-%m-%d %H:%M"))
 
 # Display Upcoming NBA Predictions
 st.subheader("Upcoming NBA Predictions")
-if not predicted_df.empty:
-    st.dataframe(predicted_df)
+if not upcoming_df.empty:
+    st.dataframe(upcoming_df)
 else:
     st.write("No upcoming predictions available.")

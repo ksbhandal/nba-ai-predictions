@@ -74,6 +74,7 @@ if st.button("Refresh Data") or needs_update():
     live_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "live": "all"})
     upcoming_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "date": (datetime.now().date()).isoformat()})
     player_stats_data = fetch_api_data("players/statistics", {"league": "12", "season": current_season})
+    team_stats_data = fetch_api_data("teams/statistics", {"league": "12", "season": current_season})
     
     # Validate API response
     if not games_data and not live_games_data and not upcoming_games_data:
@@ -88,6 +89,7 @@ if st.button("Refresh Data") or needs_update():
         "live_games": live_games_data,
         "upcoming_games": upcoming_games_data,
         "player_stats": player_stats_data,
+        "team_stats": team_stats_data,
     }
     save_data(saved_data)
 else:

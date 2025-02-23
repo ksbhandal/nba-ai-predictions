@@ -69,13 +69,14 @@ saved_data = load_saved_data()
 if st.button("Refresh Data") or needs_update():
     st.write("Fetching new data...")
     
-    # Fetch latest season data
-    games_data = fetch_api_data("games", {"league": "12", "season": current_season})
-    upcoming_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "date": (datetime.now().date()).isoformat()})
+    # Fetch latest season data correctly with date filtering
+    today_date = datetime.now().strftime("%Y-%m-%d")
+    next_2_days = (datetime.now() + timedelta(days=2)).strftime("%Y-%m-%d")
+    games_data = fetch_api_data("games", {"league": "12", "season": current_season, "from": today_date, "to": next_2_days})
     team_stats_data = fetch_api_data("teams/statistics", {"league": "12", "season": current_season})
     
     # Validate API response
-    if not games_data and not upcoming_games_data:
+    if not games_data:
         st.error("No data received from API. Please check your API key, season restrictions, or request limits.")
     else:
         st.success("Data successfully fetched!")
@@ -84,7 +85,6 @@ if st.button("Refresh Data") or needs_update():
     saved_data = {
         "last_update": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "games": games_data,
-        "upcoming_games": upcoming_games_data,
         "team_stats": team_stats_data,
     }
     save_data(saved_data)

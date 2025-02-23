@@ -95,9 +95,15 @@ else:
 def process_game_data(game_list):
     processed_data = []
     best_picks = []
+    cutoff_date = datetime.now() + timedelta(days=2)
+    
     for game in game_list:
         if isinstance(game, dict):
             try:
+                game_date = datetime.strptime(game.get("date", "N/A"), "%Y-%m-%d")
+                if game_date > cutoff_date:
+                    continue
+                
                 home_team = game.get("teams", {}).get("home", {}).get("name", "N/A")
                 away_team = game.get("teams", {}).get("away", {}).get("name", "N/A")
                 home_win_prob = np.random.uniform(40, 60)
@@ -113,25 +119,26 @@ def process_game_data(game_list):
                     "Time": game.get("time", "N/A"),
                     "Home Team": home_team,
                     "Away Team": away_team,
-                    "Home Score": game.get("scores", {}).get("home", {}).get("total", "N/A"),
-                    "Away Score": game.get("scores", {}).get("away", {}).get("total", "N/A"),
-                    "Status": game.get("status", {}).get("long", "N/A"),
                     "Home Win Probability": round(home_win_prob, 2),
                     "Away Win Probability": round(away_win_prob, 2),
-                    "Best Pick (Spread)": f"{spread} ({home_team if spread > 0 else away_team})",
-                    "Best Pick (Moneyline)": f"{home_team if home_win_prob > away_win_prob else away_team}",
-                    "Best Pick (Total)": total_points,
-                    "Confidence (Moneyline)": round(confidence_moneyline, 2),
-                    "Confidence (Spread)": round(confidence_spread, 2),
-                    "Confidence (Total)": round(confidence_total, 2),
                 }
                 processed_data.append(game_info)
+                
+                best_picks.append({
+                    "Matchup": f"{home_team} vs {away_team}",
+                    "Best Pick (Moneyline)": f"{home_team if home_win_prob > away_win_prob else away_team}",
+                    "Confidence (Moneyline)": round(confidence_moneyline, 2),
+                    "Best Pick (Spread)": f"{spread} ({home_team if spread > 0 else away_team})",
+                    "Confidence (Spread)": round(confidence_spread, 2),
+                    "Best Pick (Total)": f"Over {total_points}" if total_points > 220 else f"Under {total_points}",
+                    "Confidence (Total)": round(confidence_total, 2),
+                })
             except KeyError as e:
                 st.warning(f"Missing key in game data: {e}")
-    return pd.DataFrame(processed_data)
+    return pd.DataFrame(processed_data), pd.DataFrame(best_picks)
 
 # Process and clean data
-df = process_game_data(saved_data.get("games", []))
+df, best_picks_df = process_game_data(saved_data.get("games", []))
 
 # Streamlit Dashboard
 st.title("NBA AI Prediction Dashboard")
@@ -143,3 +150,10 @@ if not df.empty:
     st.dataframe(df)
 else:
     st.write("No upcoming predictions available.")
+
+# Display Best Picks for Next 2 Days
+st.subheader("Best Picks for Next 2 Days")
+if not best_picks_df.empty:
+    st.dataframe(best_picks_df)
+else:
+    st.write("No best picks available.")

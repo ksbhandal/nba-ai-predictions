@@ -118,7 +118,7 @@ def process_game_data(game_list):
                     "Status": game.get("status", {}).get("long", "N/A"),
                     "Home Win Probability": round(home_win_prob, 2),
                     "Away Win Probability": round(away_win_prob, 2),
-                    "Spread (Favored Team)": f"{spread} ({home_team if spread > 0 else away_team})",
+                    "Spread Pick": f"{spread} ({home_team if spread > 0 else away_team})",
                     "Predicted Total Points": total_points,
                     "Confidence (Moneyline)": round(confidence_moneyline, 2),
                     "Confidence (Spread)": round(confidence_spread, 2),
@@ -131,7 +131,7 @@ def process_game_data(game_list):
                 best_pick = "Moneyline" if best_confidence == confidence_moneyline else "Spread" if best_confidence == confidence_spread else "Total"
                 best_picks.append({
                     "Matchup": f"{home_team} vs {away_team}",
-                    "Best Pick": best_pick,
+                    "Best Pick": f"{best_pick} ({home_team if best_pick in ['Moneyline', 'Spread'] else 'Total'})",
                     "Confidence": round(best_confidence, 2)
                 })
             except KeyError as e:

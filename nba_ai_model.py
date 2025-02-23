@@ -94,20 +94,21 @@ else:
 def process_game_data(game_list):
     processed_data = []
     for game in game_list:
-        try:
-            game_info = {
-                "Date": game.get("date", "N/A"),
-                "Time": game.get("time", "N/A"),
-                "Venue": game.get("venue", {}).get("name", "N/A"),
-                "Home Team": game.get("teams", {}).get("home", {}).get("name", "N/A"),
-                "Away Team": game.get("teams", {}).get("away", {}).get("name", "N/A"),
-                "Home Score": game.get("scores", {}).get("home", {}).get("total", "N/A"),
-                "Away Score": game.get("scores", {}).get("away", {}).get("total", "N/A"),
-                "Status": game.get("status", {}).get("long", "N/A"),
-            }
-            processed_data.append(game_info)
-        except KeyError as e:
-            st.warning(f"Missing key in game data: {e}")
+        if isinstance(game, dict):  # Ensure game is a dictionary before calling .get()
+            try:
+                game_info = {
+                    "Date": game.get("date", "N/A"),
+                    "Time": game.get("time", "N/A"),
+                    "Venue": game.get("venue", {}).get("name", "N/A") if isinstance(game.get("venue"), dict) else "N/A",
+                    "Home Team": game.get("teams", {}).get("home", {}).get("name", "N/A") if isinstance(game.get("teams"), dict) else "N/A",
+                    "Away Team": game.get("teams", {}).get("away", {}).get("name", "N/A") if isinstance(game.get("teams"), dict) else "N/A",
+                    "Home Score": game.get("scores", {}).get("home", {}).get("total", "N/A") if isinstance(game.get("scores"), dict) else "N/A",
+                    "Away Score": game.get("scores", {}).get("away", {}).get("total", "N/A") if isinstance(game.get("scores"), dict) else "N/A",
+                    "Status": game.get("status", {}).get("long", "N/A") if isinstance(game.get("status"), dict) else "N/A",
+                }
+                processed_data.append(game_info)
+            except KeyError as e:
+                st.warning(f"Missing key in game data: {e}")
     return pd.DataFrame(processed_data)
 
 # Process and clean data

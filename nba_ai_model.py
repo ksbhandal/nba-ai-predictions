@@ -94,6 +94,7 @@ else:
 # Convert saved data to DataFrames
 def process_game_data(game_list):
     processed_data = []
+    best_picks = []
     for game in game_list:
         if isinstance(game, dict):
             try:
@@ -103,7 +104,10 @@ def process_game_data(game_list):
                 away_win_prob = 100 - home_win_prob
                 spread = np.random.randint(-10, 10)
                 total_points = np.random.randint(190, 240)
-                confidence = np.random.uniform(50, 95)
+                confidence_moneyline = np.random.uniform(50, 95)
+                confidence_spread = confidence_moneyline - np.random.uniform(5, 10)
+                confidence_total = confidence_moneyline - np.random.uniform(5, 10)
+                
                 game_info = {
                     "Date": game.get("date", "N/A"),
                     "Time": game.get("time", "N/A"),
@@ -116,31 +120,41 @@ def process_game_data(game_list):
                     "Away Win Probability": round(away_win_prob, 2),
                     "Spread (Favored Team)": f"{spread} ({home_team if spread > 0 else away_team})",
                     "Predicted Total Points": total_points,
-                    "Confidence (Moneyline)": round(confidence, 2),
-                    "Confidence (Spread)": round(confidence - np.random.uniform(5, 10), 2),
-                    "Confidence (Total)": round(confidence - np.random.uniform(5, 10), 2),
+                    "Confidence (Moneyline)": round(confidence_moneyline, 2),
+                    "Confidence (Spread)": round(confidence_spread, 2),
+                    "Confidence (Total)": round(confidence_total, 2),
                 }
                 processed_data.append(game_info)
+                
+                # Identify best pick
+                best_confidence = max(confidence_moneyline, confidence_spread, confidence_total)
+                best_pick = "Moneyline" if best_confidence == confidence_moneyline else "Spread" if best_confidence == confidence_spread else "Total"
+                best_picks.append({
+                    "Matchup": f"{home_team} vs {away_team}",
+                    "Best Pick": best_pick,
+                    "Confidence": round(best_confidence, 2)
+                })
             except KeyError as e:
                 st.warning(f"Missing key in game data: {e}")
-    return pd.DataFrame(processed_data)
+    return pd.DataFrame(processed_data), pd.DataFrame(best_picks)
 
 # Process and clean data
-df = process_game_data(saved_data.get("games", []))
-upcoming_df = process_game_data(saved_data.get("upcoming_games", []))
-
-# Convert UTC to PST
-utc_time = datetime.strptime(saved_data.get("last_update", "2025-01-01 00:00"), "%Y-%m-%d %H:%M")
-pst_timezone = pytz.timezone("America/Los_Angeles")
-pst_time = utc_time.astimezone(pst_timezone)
+df, best_picks_df = process_game_data(saved_data.get("games", []))
 
 # Streamlit Dashboard
 st.title("NBA AI Prediction Dashboard")
-st.metric(label="Last Updated (PST)", value=pst_time.strftime("%Y-%m-%d %H:%M"))
+st.metric(label="Last Updated (PST)", value=datetime.now(pytz.timezone("America/Los_Angeles")).strftime("%Y-%m-%d %H:%M"))
 
 # Display Upcoming NBA Predictions
 st.subheader("Upcoming NBA Predictions")
-if not upcoming_df.empty:
-    st.dataframe(upcoming_df)
+if not df.empty:
+    st.dataframe(df)
 else:
     st.write("No upcoming predictions available.")
+
+# Display Best Picks
+st.subheader("Best Picks for Each Game")
+if not best_picks_df.empty:
+    st.dataframe(best_picks_df)
+else:
+    st.write("No best picks available.")

@@ -100,7 +100,12 @@ def process_game_data(game_list):
     for game in game_list:
         if isinstance(game, dict):
             try:
-                game_date = datetime.strptime(game.get("date", "N/A"), "%Y-%m-%d")
+                game_date_str = game.get("date", "N/A")
+                try:
+                    game_date = datetime.strptime(game_date_str, "%Y-%m-%d")
+                except ValueError:
+                    game_date = datetime.now()
+                
                 if game_date > cutoff_date:
                     continue
                 
@@ -115,7 +120,7 @@ def process_game_data(game_list):
                 confidence_total = confidence_moneyline - np.random.uniform(5, 10)
                 
                 game_info = {
-                    "Date": game.get("date", "N/A"),
+                    "Date": game_date.strftime("%Y-%m-%d"),
                     "Time": game.get("time", "N/A"),
                     "Home Team": home_team,
                     "Away Team": away_team,

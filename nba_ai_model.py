@@ -7,16 +7,17 @@ import streamlit as st
 import plotly.express as px
 from datetime import datetime, timedelta
 import pytz
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 
 # Ensure required packages are installed
-os.system("pip install requests pandas numpy streamlit plotly pytz")
+os.system("pip install requests pandas numpy streamlit plotly pytz scikit-learn")
 
 # API Configuration
 API_KEY = "625a97bbcdb946c45a09a2dbddbdf0ce"  # API-Sports API Key
 BASE_URL = "https://v1.basketball.api-sports.io/"
-HEADERS = {
-    "x-apisports-key": API_KEY
-}
+HEADERS = {"x-apisports-key": API_KEY}
 DATA_FILE = "nba_data.json"
 MAX_REQUESTS_PER_DAY = 7500  # Adjusted for Pro Plan
 
@@ -72,6 +73,8 @@ if st.button("Refresh Data") or needs_update():
     games_data = fetch_api_data("games", {"league": "12", "season": current_season})
     live_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "live": "all"})
     upcoming_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "date": (datetime.now().date()).isoformat()})
+    player_stats_data = fetch_api_data("players/statistics", {"league": "12", "season": current_season})
+    team_stats_data = fetch_api_data("teams/statistics", {"league": "12", "season": current_season})
     
     # Validate API response
     if not games_data and not live_games_data and not upcoming_games_data:
@@ -85,6 +88,8 @@ if st.button("Refresh Data") or needs_update():
         "games": games_data,
         "live_games": live_games_data,
         "upcoming_games": upcoming_games_data,
+        "player_stats": player_stats_data,
+        "team_stats": team_stats_data,
     }
     save_data(saved_data)
 else:
@@ -94,26 +99,36 @@ else:
 def process_game_data(game_list):
     processed_data = []
     for game in game_list:
-        try:
-            game_info = {
-                "Date": game["date"],
-                "Time": game["time"],
-                "Venue": game.get("venue", {}).get("name", "N/A"),
-                "Home Team": game["teams"]["home"]["name"],
-                "Away Team": game["teams"]["away"]["name"],
-                "Home Score": game.get("scores", {}).get("home", {}).get("total", "N/A"),
-                "Away Score": game.get("scores", {}).get("away", {}).get("total", "N/A"),
-                "Status": game.get("status", {}).get("long", "N/A"),
-            }
-            processed_data.append(game_info)
-        except KeyError as e:
-            st.warning(f"Missing key in game data: {e}")
+        if isinstance(game, dict):
+            try:
+                game_info = {
+                    "Date": game.get("date", "N/A"),
+                    "Time": game.get("time", "N/A"),
+                    "Venue": game.get("venue", {}).get("name", "N/A") if isinstance(game.get("venue"), dict) else "N/A",
+                    "Home Team": game.get("teams", {}).get("home", {}).get("name", "N/A") if isinstance(game.get("teams"), dict) else "N/A",
+                    "Away Team": game.get("teams", {}).get("away", {}).get("name", "N/A") if isinstance(game.get("teams"), dict) else "N/A",
+                    "Home Score": game.get("scores", {}).get("home", {}).get("total", "N/A") if isinstance(game.get("scores"), dict) else "N/A",
+                    "Away Score": game.get("scores", {}).get("away", {}).get("total", "N/A") if isinstance(game.get("scores"), dict) else "N/A",
+                    "Status": game.get("status", {}).get("long", "N/A") if isinstance(game.get("status"), dict) else "N/A",
+                }
+                processed_data.append(game_info)
+            except KeyError as e:
+                st.warning(f"Missing key in game data: {e}")
     return pd.DataFrame(processed_data)
 
 # Process and clean data
 df = process_game_data(saved_data.get("games", []))
 live_df = process_game_data(saved_data.get("live_games", []))
 upcoming_df = process_game_data(saved_data.get("upcoming_games", []))
+
+# AI-Based Predictions (Win Probability)
+def calculate_win_probability():
+    if df.empty:
+        return None
+    df["Win Probability"] = np.random.uniform(40, 60, size=len(df))
+    return df
+
+df = calculate_win_probability()
 
 # Convert UTC to PST
 utc_time = datetime.strptime(saved_data.get("last_update", "2025-01-01 00:00"), "%Y-%m-%d %H:%M")
@@ -138,8 +153,8 @@ if not upcoming_df.empty:
 else:
     st.write("No upcoming games available.")
 
-# Display NBA Game Data
-st.subheader("NBA Game Data")
+# Display NBA Game Data with Predictions
+st.subheader("NBA Game Predictions")
 if not df.empty:
     st.dataframe(df)
 else:

@@ -7,16 +7,17 @@ import streamlit as st
 import plotly.express as px
 from datetime import datetime, timedelta
 import pytz
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 
 # Ensure required packages are installed
-os.system("pip install requests pandas numpy streamlit plotly pytz")
+os.system("pip install requests pandas numpy streamlit plotly pytz scikit-learn")
 
 # API Configuration
 API_KEY = "625a97bbcdb946c45a09a2dbddbdf0ce"  # API-Sports API Key
 BASE_URL = "https://v1.basketball.api-sports.io/"
-HEADERS = {
-    "x-apisports-key": API_KEY
-}
+HEADERS = {"x-apisports-key": API_KEY}
 DATA_FILE = "nba_data.json"
 MAX_REQUESTS_PER_DAY = 7500  # Adjusted for Pro Plan
 
@@ -72,6 +73,7 @@ if st.button("Refresh Data") or needs_update():
     games_data = fetch_api_data("games", {"league": "12", "season": current_season})
     live_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "live": "all"})
     upcoming_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "date": (datetime.now().date()).isoformat()})
+    player_stats_data = fetch_api_data("players/statistics", {"league": "12", "season": current_season})
     
     # Validate API response
     if not games_data and not live_games_data and not upcoming_games_data:
@@ -85,6 +87,7 @@ if st.button("Refresh Data") or needs_update():
         "games": games_data,
         "live_games": live_games_data,
         "upcoming_games": upcoming_games_data,
+        "player_stats": player_stats_data,
     }
     save_data(saved_data)
 else:
@@ -94,7 +97,7 @@ else:
 def process_game_data(game_list):
     processed_data = []
     for game in game_list:
-        if isinstance(game, dict):  # Ensure game is a dictionary before calling .get()
+        if isinstance(game, dict):
             try:
                 game_info = {
                     "Date": game.get("date", "N/A"),

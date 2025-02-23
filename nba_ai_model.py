@@ -31,10 +31,10 @@ def fetch_api_data(endpoint, params=None):
         response = requests.get(url, headers=HEADERS, params=params)
         response.raise_for_status()
         data = response.json()
-        if "response" in data:
+        if "response" in data and data["response"]:
             return data["response"]
         else:
-            st.error(f"Unexpected API response: {data}")
+            st.error(f"Unexpected or empty API response: {data}")
             return []
     except requests.exceptions.RequestException as e:
         st.error(f"API request failed: {e}")
@@ -72,7 +72,11 @@ if st.button("Refresh Data") or needs_update():
     # Fetch only upcoming games (next two days)
     today_date = datetime.now().strftime("%Y-%m-%d")
     next_2_days = (datetime.now() + timedelta(days=2)).strftime("%Y-%m-%d")
-    upcoming_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "from": today_date, "to": next_2_days})
+    upcoming_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "date": today_date})
+    
+    if not upcoming_games_data:
+        upcoming_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "from": today_date, "to": next_2_days})
+    
     team_stats_data = fetch_api_data("teams/statistics", {"league": "12", "season": current_season})
     
     # Validate API response

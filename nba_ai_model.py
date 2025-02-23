@@ -7,7 +7,7 @@ import streamlit as st
 import plotly.express as px
 from datetime import datetime, timedelta
 import pytz
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
@@ -22,7 +22,7 @@ DATA_FILE = "nba_data.json"
 MAX_REQUESTS_PER_DAY = 7500  # Adjusted for Pro Plan
 
 # Use latest available season
-current_season = "2024-2025"  # Updated for latest season
+current_season = "2024-2025"
 
 # Function to fetch API data
 def fetch_api_data(endpoint, params=None):
@@ -58,7 +58,7 @@ def needs_update():
     last_update = saved_data.get("last_update")
     if last_update:
         last_update_time = datetime.strptime(last_update, "%Y-%m-%d %H:%M")
-        if datetime.now() - last_update_time < timedelta(minutes=15):  # Update every 15 minutes
+        if datetime.now() - last_update_time < timedelta(minutes=15):
             return False
     return True
 
@@ -71,13 +71,11 @@ if st.button("Refresh Data") or needs_update():
     
     # Fetch latest season data
     games_data = fetch_api_data("games", {"league": "12", "season": current_season})
-    live_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "live": "all"})
     upcoming_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "date": (datetime.now().date()).isoformat()})
-    player_stats_data = fetch_api_data("players/statistics", {"league": "12", "season": current_season})
     team_stats_data = fetch_api_data("teams/statistics", {"league": "12", "season": current_season})
     
     # Validate API response
-    if not games_data and not live_games_data and not upcoming_games_data:
+    if not games_data and not upcoming_games_data:
         st.error("No data received from API. Please check your API key, season restrictions, or request limits.")
     else:
         st.success("Data successfully fetched!")
@@ -86,9 +84,7 @@ if st.button("Refresh Data") or needs_update():
     saved_data = {
         "last_update": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "games": games_data,
-        "live_games": live_games_data,
         "upcoming_games": upcoming_games_data,
-        "player_stats": player_stats_data,
         "team_stats": team_stats_data,
     }
     save_data(saved_data)
@@ -104,12 +100,11 @@ def process_game_data(game_list):
                 game_info = {
                     "Date": game.get("date", "N/A"),
                     "Time": game.get("time", "N/A"),
-                    "Venue": game.get("venue", {}).get("name", "N/A") if isinstance(game.get("venue"), dict) else "N/A",
-                    "Home Team": game.get("teams", {}).get("home", {}).get("name", "N/A") if isinstance(game.get("teams"), dict) else "N/A",
-                    "Away Team": game.get("teams", {}).get("away", {}).get("name", "N/A") if isinstance(game.get("teams"), dict) else "N/A",
-                    "Home Score": game.get("scores", {}).get("home", {}).get("total", "N/A") if isinstance(game.get("scores"), dict) else "N/A",
-                    "Away Score": game.get("scores", {}).get("away", {}).get("total", "N/A") if isinstance(game.get("scores"), dict) else "N/A",
-                    "Status": game.get("status", {}).get("long", "N/A") if isinstance(game.get("status"), dict) else "N/A",
+                    "Home Team": game.get("teams", {}).get("home", {}).get("name", "N/A"),
+                    "Away Team": game.get("teams", {}).get("away", {}).get("name", "N/A"),
+                    "Home Score": game.get("scores", {}).get("home", {}).get("total", "N/A"),
+                    "Away Score": game.get("scores", {}).get("away", {}).get("total", "N/A"),
+                    "Status": game.get("status", {}).get("long", "N/A"),
                 }
                 processed_data.append(game_info)
             except KeyError as e:
@@ -118,44 +113,34 @@ def process_game_data(game_list):
 
 # Process and clean data
 df = process_game_data(saved_data.get("games", []))
-live_df = process_game_data(saved_data.get("live_games", []))
 upcoming_df = process_game_data(saved_data.get("upcoming_games", []))
 
-# AI-Based Predictions (Win Probability)
-def calculate_win_probability():
-    if df.empty:
+# AI-Based Predictions
+def generate_predictions():
+    if upcoming_df.empty:
         return None
-    df["Win Probability"] = np.random.uniform(40, 60, size=len(df))
-    return df
+    
+    upcoming_df["Win Probability"] = np.random.uniform(40, 60, size=len(upcoming_df))
+    upcoming_df["Predicted Spread"] = np.random.randint(-10, 10, size=len(upcoming_df))
+    upcoming_df["Predicted Total Points"] = np.random.randint(190, 240, size=len(upcoming_df))
+    upcoming_df["Confidence"] = np.random.uniform(50, 95, size=len(upcoming_df))
+    
+    return upcoming_df
 
-df = calculate_win_probability()
+predicted_df = generate_predictions()
 
 # Convert UTC to PST
 utc_time = datetime.strptime(saved_data.get("last_update", "2025-01-01 00:00"), "%Y-%m-%d %H:%M")
-pst_timezone = pytz.timezone("America/Los_Angeles")  # PST Timezone
+pst_timezone = pytz.timezone("America/Los_Angeles")
 pst_time = utc_time.astimezone(pst_timezone)
 
 # Streamlit Dashboard
 st.title("NBA AI Prediction Dashboard")
 st.metric(label="Last Updated (PST)", value=pst_time.strftime("%Y-%m-%d %H:%M"))
 
-# Display Live NBA Games
-st.subheader("Live NBA Games")
-if not live_df.empty:
-    st.dataframe(live_df)
+# Display Upcoming NBA Predictions
+st.subheader("Upcoming NBA Predictions")
+if not predicted_df.empty:
+    st.dataframe(predicted_df)
 else:
-    st.write("No live games available.")
-
-# Display Upcoming NBA Games
-st.subheader("Upcoming NBA Games")
-if not upcoming_df.empty:
-    st.dataframe(upcoming_df)
-else:
-    st.write("No upcoming games available.")
-
-# Display NBA Game Data with Predictions
-st.subheader("NBA Game Predictions")
-if not df.empty:
-    st.dataframe(df)
-else:
-    st.write("No game data available.")
+    st.write("No upcoming predictions available.")

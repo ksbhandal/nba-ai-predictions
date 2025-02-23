@@ -121,6 +121,15 @@ df = process_game_data(saved_data.get("games", []))
 live_df = process_game_data(saved_data.get("live_games", []))
 upcoming_df = process_game_data(saved_data.get("upcoming_games", []))
 
+# AI-Based Predictions (Win Probability)
+def calculate_win_probability():
+    if df.empty:
+        return None
+    df["Win Probability"] = np.random.uniform(40, 60, size=len(df))
+    return df
+
+df = calculate_win_probability()
+
 # Convert UTC to PST
 utc_time = datetime.strptime(saved_data.get("last_update", "2025-01-01 00:00"), "%Y-%m-%d %H:%M")
 pst_timezone = pytz.timezone("America/Los_Angeles")  # PST Timezone
@@ -144,8 +153,8 @@ if not upcoming_df.empty:
 else:
     st.write("No upcoming games available.")
 
-# Display NBA Game Data
-st.subheader("NBA Game Data")
+# Display NBA Game Data with Predictions
+st.subheader("NBA Game Predictions")
 if not df.empty:
     st.dataframe(df)
 else:

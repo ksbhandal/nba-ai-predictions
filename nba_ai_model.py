@@ -96,11 +96,11 @@ def process_game_data(game_list):
     for game in game_list:
         try:
             game_info = {
-                "Date": game["date"],
-                "Time": game["time"],
+                "Date": game.get("date", "N/A"),
+                "Time": game.get("time", "N/A"),
                 "Venue": game.get("venue", {}).get("name", "N/A"),
-                "Home Team": game["teams"]["home"]["name"],
-                "Away Team": game["teams"]["away"]["name"],
+                "Home Team": game.get("teams", {}).get("home", {}).get("name", "N/A"),
+                "Away Team": game.get("teams", {}).get("away", {}).get("name", "N/A"),
                 "Home Score": game.get("scores", {}).get("home", {}).get("total", "N/A"),
                 "Away Score": game.get("scores", {}).get("away", {}).get("total", "N/A"),
                 "Status": game.get("status", {}).get("long", "N/A"),

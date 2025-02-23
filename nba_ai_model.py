@@ -31,8 +31,6 @@ def fetch_api_data(endpoint, params=None):
         response.raise_for_status()
         data = response.json()
         if "response" in data:
-            if not data["response"]:
-                st.warning(f"No data returned for {endpoint}. Params: {params}")
             return data["response"]
         else:
             st.error(f"Unexpected API response: {data}")
@@ -74,7 +72,6 @@ if st.button("Refresh Data") or needs_update():
     games_data = fetch_api_data("games", {"league": "12", "season": current_season})
     live_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "live": "all"})
     upcoming_games_data = fetch_api_data("games", {"league": "12", "season": current_season, "date": (datetime.now().date()).isoformat()})
-    player_stats_data = fetch_api_data("players/statistics", {"league": "12", "season": current_season})
     
     # Validate API response
     if not games_data and not live_games_data and not upcoming_games_data:
@@ -88,17 +85,35 @@ if st.button("Refresh Data") or needs_update():
         "games": games_data,
         "live_games": live_games_data,
         "upcoming_games": upcoming_games_data,
-        "player_stats": player_stats_data,
     }
     save_data(saved_data)
 else:
     st.write("Using cached data...")
 
 # Convert saved data to DataFrames
-df = pd.DataFrame(saved_data.get("games", []))
-live_df = pd.DataFrame(saved_data.get("live_games", []))
-upcoming_df = pd.DataFrame(saved_data.get("upcoming_games", []))
-player_df = pd.DataFrame(saved_data.get("player_stats", []))
+def process_game_data(game_list):
+    processed_data = []
+    for game in game_list:
+        try:
+            game_info = {
+                "Date": game["date"],
+                "Time": game["time"],
+                "Venue": game.get("venue", {}).get("name", "N/A"),
+                "Home Team": game["teams"]["home"]["name"],
+                "Away Team": game["teams"]["away"]["name"],
+                "Home Score": game.get("scores", {}).get("home", {}).get("total", "N/A"),
+                "Away Score": game.get("scores", {}).get("away", {}).get("total", "N/A"),
+                "Status": game.get("status", {}).get("long", "N/A"),
+            }
+            processed_data.append(game_info)
+        except KeyError as e:
+            st.warning(f"Missing key in game data: {e}")
+    return pd.DataFrame(processed_data)
+
+# Process and clean data
+df = process_game_data(saved_data.get("games", []))
+live_df = process_game_data(saved_data.get("live_games", []))
+upcoming_df = process_game_data(saved_data.get("upcoming_games", []))
 
 # Convert UTC to PST
 utc_time = datetime.strptime(saved_data.get("last_update", "2025-01-01 00:00"), "%Y-%m-%d %H:%M")

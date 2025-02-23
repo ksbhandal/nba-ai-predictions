@@ -118,28 +118,20 @@ def process_game_data(game_list):
                     "Status": game.get("status", {}).get("long", "N/A"),
                     "Home Win Probability": round(home_win_prob, 2),
                     "Away Win Probability": round(away_win_prob, 2),
-                    "Spread Pick": f"{spread} ({home_team if spread > 0 else away_team})",
-                    "Predicted Total Points": total_points,
+                    "Best Pick (Spread)": f"{spread} ({home_team if spread > 0 else away_team})",
+                    "Best Pick (Moneyline)": f"{home_team if home_win_prob > away_win_prob else away_team}",
+                    "Best Pick (Total)": total_points,
                     "Confidence (Moneyline)": round(confidence_moneyline, 2),
                     "Confidence (Spread)": round(confidence_spread, 2),
                     "Confidence (Total)": round(confidence_total, 2),
                 }
                 processed_data.append(game_info)
-                
-                # Identify best pick
-                best_confidence = max(confidence_moneyline, confidence_spread, confidence_total)
-                best_pick = "Moneyline" if best_confidence == confidence_moneyline else "Spread" if best_confidence == confidence_spread else "Total"
-                best_picks.append({
-                    "Matchup": f"{home_team} vs {away_team}",
-                    "Best Pick": f"{best_pick} ({home_team if best_pick in ['Moneyline', 'Spread'] else 'Total'})",
-                    "Confidence": round(best_confidence, 2)
-                })
             except KeyError as e:
                 st.warning(f"Missing key in game data: {e}")
-    return pd.DataFrame(processed_data), pd.DataFrame(best_picks)
+    return pd.DataFrame(processed_data)
 
 # Process and clean data
-df, best_picks_df = process_game_data(saved_data.get("games", []))
+df = process_game_data(saved_data.get("games", []))
 
 # Streamlit Dashboard
 st.title("NBA AI Prediction Dashboard")
@@ -151,10 +143,3 @@ if not df.empty:
     st.dataframe(df)
 else:
     st.write("No upcoming predictions available.")
-
-# Display Best Picks
-st.subheader("Best Picks for Each Game")
-if not best_picks_df.empty:
-    st.dataframe(best_picks_df)
-else:
-    st.write("No best picks available.")

@@ -106,7 +106,7 @@ def process_game_data(game_list):
                 except ValueError:
                     game_date = datetime.now()
                 
-                if game_date > cutoff_date:
+                if game_date.date() > cutoff_date.date():
                     continue
                 
                 home_team = game.get("teams", {}).get("home", {}).get("name", "N/A")
